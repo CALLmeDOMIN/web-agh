@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Giga-Developera</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #1e1e1e;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            width: 400px;
+        }
+        h2 { text-align: center; color: #00ffcc; margin-top: 0; }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background-color: #181818;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #00ffcc;
+            color: #121212;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:hover { background-color: #00cc99; }
+        button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
+        input {
+            width: calc(100% - 20px);
+            padding: 8px;
+            margin-bottom: 10px;
+            background-color: #222;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+        }
+        .status-box {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #000;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            max-height: 120px;
+            overflow-y: auto;
+            color: #00ff00;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>OTel Demo Console</h2>
+
+    <div class="section">
+        <h3>1. Autoryzacja</h3>
+        <button id="loginBtn" onclick="pobierzToken()">Zaloguj (Pobierz Token)</button>
+        <div id="tokenStatus" class="status-box">Status: Brak tokenu (Niezalogowany)</div>
+    </div>
+
+    <div class="section">
+        <h3>2. Akcja (Kup Produkt)</h3>
+        <input type="text" id="productInput" value="RTX4090_TI" placeholder="Nazwa produktu">
+        <button id="buyBtn" onclick="kupProdukt()" disabled>Kup Teraz 🚀</button>
+        <div id="orderStatus" class="status-box">Czekam na akcję...</div>
+    </div>
+</div>
+
+<script>
+    let zapisanyToken = null;
+    const GATEWAY_URL = "http://127.0.0.1:8000";
+
+    // Funkcja strzela do Gateway po token
+    async function pobierzToken() {
+        const tokenStatusDiv = document.getElementById("tokenStatus");
+        tokenStatusDiv.innerText = "Logowanie...";
+
+        try {
+            const response = await fetch(`${GATEWAY_URL}/login`);
+            const data = await response.json();
+
+            zapisanyToken = data.access_token;
+
+            tokenStatusDiv.style.color = "#00ffcc";
+            tokenStatusDiv.innerText = `Zalogowano! Token:\n${zapisanyToken}`;
+
+            // Odblokuj przycisk kupowania
+            document.getElementById("buyBtn").disabled = false;
+        } catch (error) {
+            tokenStatusDiv.style.color = "#ff3333";
+            tokenStatusDiv.innerText = "Błąd połączenia z Gateway! Odpaliliłeś skrypty Pythona?";
+        }
+    }
+
+    // Funkcja kupuje produkt, wysyłając token w nagłówku Bearer
+    async function kupProdukt() {
+        const produkt = document.getElementById("productInput").value;
+        const orderStatusDiv = document.getElementById("orderStatus");
+        orderStatusDiv.style.color = "#ffff00";
+        orderStatusDiv.innerText = "Wysyłam żądanie przez Gateway do bazy danych...";
+
+        try {
+            const response = await fetch(`${GATEWAY_URL}/kup-produkt?item=${encodeURIComponent(produkt)}`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${zapisanyToken}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.status === 200) {
+                orderStatusDiv.style.color = "#00ff00";
+                orderStatusDiv.innerText = `SUKCES!\nServer zwrócił: ${JSON.stringify(data)}`;
+            } else {
+                orderStatusDiv.style.color = "#ff3333";
+                orderStatusDiv.innerText = `BŁĄD SERWERA: ${data.detail || 'Nieznany'}`;
+            }
+        } catch (error) {
+            orderStatusDiv.style.color = "#ff3333";
+            orderStatusDiv.innerText = "Błąd sieciowy podczas zakupu!";
+        }
+    }
+</script>
+
+</body>
+</html>

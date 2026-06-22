@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # 1. BAZA DANYCH POSTGRESQL
+  postgres_db:
+    image: postgres:latest
+    container_name: sklep-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: giga_dev
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: sklep_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # 2. JAEGER (TELEMETRIA & UI)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686"  # Panel WWW Jaegera (UI do przeglądania śladów)
+      - "4317:4317"    # Port OTLP/gRPC (tu nasze skrypty w Pythonie pchają spany)
+    restart: unless-stopped
+
+volumes:
+  postgres_data:  # Dzięki temu dane w bazie nie znikną po wyłączeniu kontenera
