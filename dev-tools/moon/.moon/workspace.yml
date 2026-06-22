@@ -1,0 +1,6 @@
+vcs:
+  client: 'git'
+  defaultBranch: 'main'
+projects:
+  client: 'apps/client'
+  # server: 'apps/server'

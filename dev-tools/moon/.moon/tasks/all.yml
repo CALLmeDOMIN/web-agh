@@ -1,0 +1,10 @@
+tasks:
+  lint:
+    command: 'node_modules/.bin/eslint --no-error-on-unmatched-pattern .' 
+  typecheck:
+    command: 'tsc --build'
+    toolchain: 'node'
+  check:
+    deps:
+      - 'lint'
+      - 'typecheck'
