@@ -1,0 +1,8 @@
+node_modules
+dist
+build
+playwright-report
+test-results
+blob-report
+**/*-snapshots/**
+package-lock.json

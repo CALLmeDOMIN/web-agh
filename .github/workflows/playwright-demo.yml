@@ -1,0 +1,127 @@
+name: Playwright Demo CI/CD
+
+# Workflow leży w ROOCIE repo (GitHub Actions czyta tylko stąd),
+# ale aplikacja siedzi w podfolderze playwright-cicd-demo/.
+on:
+  push:
+    branches: [main]
+    # Odpalaj tylko gdy zmienia się folder demo (oszczędność w repo dzielonym z innymi)
+    paths:
+      - 'playwright-cicd-demo/**'
+      - '.github/workflows/playwright-demo.yml'
+  pull_request:
+    paths:
+      - 'playwright-cicd-demo/**'
+      - '.github/workflows/playwright-demo.yml'
+
+# Wszystkie komendy `run` wykonują się w podfolderze z aplikacją
+defaults:
+  run:
+    working-directory: playwright-cicd-demo
+
+jobs:
+  # ---- 0. Quality gate: lint + format + typy ----
+  quality:
+    name: Lint + Format + Typy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: playwright-cicd-demo/package-lock.json
+      - name: Instalacja zależności
+        run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: Prettier (sprawdzenie formatowania)
+        run: npm run format:check
+      - name: TypeScript (type-check)
+        run: npm run typecheck
+
+  # ---- 1. Budowanie aplikacji ----
+  build:
+    name: Build
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          # package-lock.json jest w podfolderze, nie w roocie
+          cache-dependency-path: playwright-cicd-demo/package-lock.json
+      - name: Instalacja zależności
+        run: npm ci
+      - name: Budowanie frontendu
+        run: npm run build
+
+  # ---- 2. Testy E2E + API (Playwright) ----
+  e2e:
+    name: E2E + API (Playwright)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: playwright-cicd-demo/package-lock.json
+      - name: Instalacja zależności
+        run: npm ci
+      - name: Instalacja przeglądarek Playwright
+        run: npx playwright install --with-deps
+      - name: Testy funkcjonalne + API (bez visual)
+        run: npx playwright test --grep-invert @visual
+      - name: Upload raportu HTML
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          # path w `uses` NIE bierze working-directory - podajemy od roota
+          path: playwright-cicd-demo/playwright-report/
+          retention-days: 7
+
+  # ---- 3. Visual regression (informacyjny - baseline jest OS-zależny) ----
+  visual:
+    name: Visual regression
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: playwright-cicd-demo/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Testy visual regression
+        run: npx playwright test --grep @visual --project=chromium
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: visual-report
+          path: playwright-cicd-demo/playwright-report/
+          retention-days: 7
+
+  # ---- 4. Deploy (tylko z main, po przejściu testów) ----
+  deploy:
+    name: Deploy
+    needs: [e2e]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Deploy na produkcję
+        run: |
+          echo "🚀 Tutaj komenda deploya."
+          echo "Np. vercel deploy / docker push / scp / firebase deploy"
+        env:
+          # Wrażliwe dane trzymamy w GitHub Secrets, nie w kodzie!
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
