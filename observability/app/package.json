@@ -1,0 +1,18 @@
+{
+  "name": "lgtm-demo-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Demo app emitujaca metryki (Prometheus), logi (Loki) i trace'y (Tempo)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node -r ./tracing.js server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pino": "^9.5.0",
+    "prom-client": "^15.1.3",
+    "@opentelemetry/sdk-node": "^0.57.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.56.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.57.1"
+  }
+}

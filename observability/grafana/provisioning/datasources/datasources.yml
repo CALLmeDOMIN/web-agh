@@ -1,0 +1,59 @@
+apiVersion: 1
+
+# Datasource'y konfigurowane "as code" — po starcie Grafany sa od razu gotowe.
+# Najwazniejsze sa sekcje korelacji (jsonData), ktore laczą sygnaly:
+#   metryki -> trace (exemplars), trace -> logi, trace -> metryki, log -> trace.
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      # Exemplars: z wykresu metryki skaczemy wprost do konkretnego trace'a
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      # Trace -> Logi: z wybranego span'a otwieramy powiazane logi w Loki
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: '-5m'
+        spanEndTimeShift: '5m'
+        filterByTraceID: true
+        customQuery: false
+      # Trace -> Metryki: z span'a do metryk R//ED w Prometheusie
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: '-5m'
+        spanEndTimeShift: '5m'
+      # Graf zaleznosci uslug (dane z metrics_generator Tempo)
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      tracesToProfiles:
+        customQuery: false
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      # Log -> Trace: w logu wykrywamy trace_id i robimy z niego klikalny link
+      derivedFields:
+        - name: trace_id
+          matcherType: regex
+          matcherRegex: '"trace_id":"(\w+)"'
+          url: '$${__value.raw}'
+          datasourceUid: tempo
+          urlDisplayLabel: 'Zobacz trace'

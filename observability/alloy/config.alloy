@@ -1,0 +1,52 @@
+// Grafana Alloy — nowoczesny kolektor (nastepca Promtaila/agenta).
+// Tu uzywamy go do JEDNEGO zadania: zbieranie logow z kontenerow Dockera
+// i wysylanie ich do Loki. Trace'y aplikacja wysyla wprost do Tempo,
+// a metryki Prometheus scrapuje samodzielnie.
+
+// 1. Odkrywamy wszystkie kontenery przez socket Dockera
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// 2. Przepisujemy metadane Dockera na czytelne etykiety Loki
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+}
+
+// 3. Czytamy logi kontenerow
+loki.source.docker "default" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  labels     = { job = "docker" }
+  forward_to = [loki.process.parse.receiver]
+}
+
+// 4. Parsujemy JSON z pino i wyciagamy "level" jako etykiete.
+//    trace_id zostawiamy w tresci logu — Grafana zrobi z niego link do Tempo.
+loki.process "parse" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.json {
+    expressions = { level = "level" }
+  }
+  stage.labels {
+    values = { level = "level" }
+  }
+}
+
+// 5. Wysylamy do Loki
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # Scrapujemy nasza aplikacje demo (endpoint /metrics)
+  - job_name: 'demo-app'
+    static_configs:
+      - targets: ['app:3000']
+        labels:
+          service: 'demo-app'
+
+  # Prometheus scrapuje sam siebie
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Metryki samego kolektora Alloy (przydatne do debugowania pipeline'u logow)
+  - job_name: 'alloy'
+    static_configs:
+      - targets: ['alloy:12345']
