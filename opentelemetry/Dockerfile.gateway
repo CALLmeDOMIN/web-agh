@@ -1,0 +1,8 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements_gateway.txt .
+RUN pip install --no-cache-dir -r requirements_gateway.txt
+COPY gateway.py ./gateway.py
+COPY index.html .
+EXPOSE 8000
+CMD ["python", "gateway.py"]

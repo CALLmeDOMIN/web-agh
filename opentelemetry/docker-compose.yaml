@@ -1,9 +1,8 @@
 version: '3.8'
 
 services:
-  # 1. BAZA DANYCH POSTGRESQL
   postgres_db:
-    image: postgres:latest
+    image: postgres:16
     container_name: sklep-postgres
     ports:
       - "5432:5432"
@@ -12,17 +11,52 @@ services:
       POSTGRES_PASSWORD: password123
       POSTGRES_DB: sklep_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data   # ← poprawiona ścieżka
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U giga_dev -d sklep_db"]
+      interval: 5s
+      retries: 10
     restart: unless-stopped
 
-  # 2. JAEGER (TELEMETRIA & UI)
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.57
     container_name: jaeger
     ports:
-      - "16686:16686"  # Panel WWW Jaegera (UI do przeglądania śladów)
-      - "4317:4317"    # Port OTLP/gRPC (tu nasze skrypty w Pythonie pchają spany)
+      - "16686:16686"
+      - "4317:4317"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:16686 || exit 1"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  core_backend:
+    build:                          # ← używa Dockerfile zamiast gołego image
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: core-backend
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres_db:
+        condition: service_healthy  # ← czeka aż postgres będzie gotowy
+      jaeger:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api_gateway:
+    build:                          # ← używa Dockerfile zamiast gołego image
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: api-gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      core_backend:
+        condition: service_started
+      jaeger:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  postgres_data:  # Dzięki temu dane w bazie nie znikną po wyłączeniu kontenera
+  postgres_data:
